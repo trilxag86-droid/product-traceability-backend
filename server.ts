@@ -8,7 +8,7 @@ dotenv.config();
 
 const app = express();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // ========================================
 // ENVIRONMENT
@@ -1199,9 +1199,8 @@ app.get(
 // ========================================
 
 app.listen(
-
     PORT,
-
+    "0.0.0.0",
     () => {
 
         console.log(
@@ -1213,7 +1212,7 @@ app.listen(
         );
 
         console.log(
-            `Server running at http://localhost:${PORT}`
+            `Server running on port ${PORT}`
         );
 
         console.log(
@@ -1231,5 +1230,4 @@ app.listen(
         );
 
     }
-
 );
