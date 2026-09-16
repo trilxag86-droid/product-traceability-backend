@@ -4,9 +4,10 @@
   "description": "",
   "type": "module",
   "main": "index.js",
-  "scripts": {
-    "dev": "tsx server.ts"
-  },
+"scripts": {
+  "dev": "tsx server.ts",
+  "start": "tsx server.ts"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
