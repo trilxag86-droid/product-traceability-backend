@@ -1,60 +1,117 @@
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { ethers } from "ethers";
+import multer from "multer";
+import * as XLSX from "xlsx";
 
 dotenv.config();
 
+// ============================================================
+// APP
+// ============================================================
+
 const app = express();
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT =
+    Number(process.env.PORT) || 3000;
 
-// ========================================
+
+// ============================================================
 // ENVIRONMENT
-// ========================================
+// ============================================================
 
-const PINATA_JWT = process.env.PINATA_JWT;
-const PINATA_GATEWAY = process.env.PINATA_GATEWAY;
-const RPC_URL = process.env.SEPOLIA_RPC_URL;
-const PRIVATE_KEY = process.env.SEPOLIA_PRIVATE_KEY;
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
+const PINATA_JWT =
+    process.env.PINATA_JWT;
 
-// ========================================
+const PINATA_GATEWAY =
+    process.env.PINATA_GATEWAY;
+
+const RPC_URL =
+    process.env.SEPOLIA_RPC_URL;
+
+const PRIVATE_KEY =
+    process.env.SEPOLIA_PRIVATE_KEY;
+
+const CONTRACT_ADDRESS =
+    process.env.CONTRACT_ADDRESS;
+
+const FRONTEND_URL =
+    process.env.FRONTEND_URL ||
+    "http://localhost:5173";
+
+
+// ============================================================
 // CHECK ENVIRONMENT
-// ========================================
+// ============================================================
 
 if (!PINATA_JWT) {
-    throw new Error("PINATA_JWT is not configured");
+    throw new Error(
+        "PINATA_JWT is not configured"
+    );
 }
 
 if (!PINATA_GATEWAY) {
-    throw new Error("PINATA_GATEWAY is not configured");
+    throw new Error(
+        "PINATA_GATEWAY is not configured"
+    );
 }
 
 if (!RPC_URL) {
-    throw new Error("SEPOLIA_RPC_URL is not configured");
+    throw new Error(
+        "SEPOLIA_RPC_URL is not configured"
+    );
 }
 
 if (!PRIVATE_KEY) {
-    throw new Error("SEPOLIA_PRIVATE_KEY is not configured");
+    throw new Error(
+        "SEPOLIA_PRIVATE_KEY is not configured"
+    );
 }
 
 if (!CONTRACT_ADDRESS) {
-    throw new Error("CONTRACT_ADDRESS is not configured");
+    throw new Error(
+        "CONTRACT_ADDRESS is not configured"
+    );
 }
 
-// ========================================
+
+// ============================================================
 // MIDDLEWARE
-// ========================================
+// ============================================================
 
 app.use(cors());
 
-app.use(express.json());
+app.use(
+    express.json({
+        limit: "10mb"
+    })
+);
 
-// ========================================
+
+// ============================================================
+// MULTER
+// ============================================================
+
+const upload =
+    multer({
+
+        storage:
+            multer.memoryStorage(),
+
+        limits: {
+
+            fileSize:
+                10 * 1024 * 1024
+
+        }
+
+    });
+
+
+// ============================================================
 // SMART CONTRACT ABI
-// ========================================
+// ============================================================
 
 const ProductTraceabilityABI = [
 
@@ -66,52 +123,65 @@ const ProductTraceabilityABI = [
 
 ];
 
-// ========================================
+
+// ============================================================
 // PROVIDER
-// ========================================
+// ============================================================
 
-const provider = new ethers.JsonRpcProvider(
+const provider =
+    new ethers.JsonRpcProvider(
 
-    RPC_URL,
+        RPC_URL,
 
-    {
-        name: "sepolia",
-        chainId: 11155111
-    },
+        {
+            name:
+                "sepolia",
 
-    {
-        staticNetwork: true,
-        batchMaxCount: 1
-    }
+            chainId:
+                11155111
+        },
 
-);
+        {
+            staticNetwork:
+                true
+        }
 
-// ========================================
+    );
+
+
+// ============================================================
 // WALLET
-// ========================================
+// ============================================================
 
-const wallet = new ethers.Wallet(
-    PRIVATE_KEY,
-    provider
-);
+const wallet =
+    new ethers.Wallet(
 
-// ========================================
+        PRIVATE_KEY,
+
+        provider
+
+    );
+
+
+// ============================================================
 // CONTRACT
-// ========================================
+// ============================================================
 
-const contract = new ethers.Contract(
+const contract =
+    new ethers.Contract(
 
-    CONTRACT_ADDRESS,
+        CONTRACT_ADDRESS,
 
-    ProductTraceabilityABI,
+        ProductTraceabilityABI,
 
-    wallet
+        wallet
 
-);
+    );
 
-// ========================================
+
+// ============================================================
 // FETCH WITH TIMEOUT
-// ========================================
+// ============================================================
 
 async function fetchWithTimeout(
 
@@ -119,7 +189,7 @@ async function fetchWithTimeout(
 
     options: RequestInit = {},
 
-    timeoutMs = 60000
+    timeoutMs: number = 60000
 
 ): Promise<Response> {
 
@@ -129,7 +199,11 @@ async function fetchWithTimeout(
     const timeout =
         setTimeout(
 
-            () => controller.abort(),
+            () => {
+
+                controller.abort();
+
+            },
 
             timeoutMs
 
@@ -162,59 +236,249 @@ async function fetchWithTimeout(
 
 }
 
-// ========================================
-// TEST RPC
-// ========================================
 
-provider.getBlockNumber()
+// ============================================================
+// CONVERT EXCEL ROW → PRODUCT JSON
+// ============================================================
 
-    .then(
+function rowToProduct(
+    row: Record<string, unknown>
+) {
 
-        (block) => {
+    return {
 
-            console.log(
-                "================================"
-            );
+        batchId:
 
-            console.log(
-                "RPC CONNECTED"
-            );
+            String(
 
-            console.log(
-                "Sepolia Chain ID: 11155111"
-            );
+                row.batchId ??
+                row.BatchId ??
+                row["Batch ID"] ??
+                ""
 
-            console.log(
-                "Latest block:",
-                block
-            );
+            ).trim(),
 
-            console.log(
-                "================================"
-            );
+
+        productName:
+
+            String(
+
+                row.productName ??
+                row.ProductName ??
+                row["Product Name"] ??
+                ""
+
+            ).trim(),
+
+
+        origin:
+
+            String(
+
+                row.origin ??
+                row.Origin ??
+                ""
+
+            ).trim(),
+
+
+        productionDate:
+
+            String(
+
+                row.productionDate ??
+                row.ProductionDate ??
+                row["Production Date"] ??
+                ""
+
+            ).trim(),
+
+
+        quantity:
+
+            Number(
+
+                row.quantity ??
+                row.Quantity ??
+                0
+
+            ),
+
+
+        unit:
+
+            String(
+
+                row.unit ??
+                row.Unit ??
+                ""
+
+            ).trim(),
+
+
+        processing: {
+
+            temperature:
+
+                Number(
+
+                    row.temperature ??
+                    row.Temperature ??
+                    row["Temperature"] ??
+                    0
+
+                ),
+
+
+            humidity:
+
+                Number(
+
+                    row.humidity ??
+                    row.Humidity ??
+                    row["Humidity"] ??
+                    0
+
+                ),
+
+
+            duration:
+
+                Number(
+
+                    row.duration ??
+                    row.Duration ??
+                    row["Duration"] ??
+                    0
+
+                )
 
         }
 
-    )
+    };
 
-    .catch(
+}
 
-        (error) => {
 
-            console.error(
-                "RPC CONNECTION ERROR:",
-                error instanceof Error
-                    ? error.message
-                    : error
-            );
+// ============================================================
+// VALIDATE PRODUCT
+// ============================================================
 
-        }
+function validateProduct(
 
-    );
+    product:
+        ReturnType<typeof rowToProduct>
 
-// ========================================
-// TEST SERVER
-// ========================================
+): string[] {
+
+    const errors: string[] = [];
+
+
+    if (!product.batchId) {
+
+        errors.push(
+            "batchId is empty"
+        );
+
+    }
+
+
+    if (!product.productName) {
+
+        errors.push(
+            "productName is empty"
+        );
+
+    }
+
+
+    if (!product.origin) {
+
+        errors.push(
+            "origin is empty"
+        );
+
+    }
+
+
+    if (!product.productionDate) {
+
+        errors.push(
+            "productionDate is empty"
+        );
+
+    }
+
+
+    if (
+        !Number.isFinite(
+            product.quantity
+        )
+    ) {
+
+        errors.push(
+            "quantity is invalid"
+        );
+
+    }
+
+
+    if (!product.unit) {
+
+        errors.push(
+            "unit is empty"
+        );
+
+    }
+
+
+    if (
+        !Number.isFinite(
+            product.processing.temperature
+        )
+    ) {
+
+        errors.push(
+            "temperature is invalid"
+        );
+
+    }
+
+
+    if (
+        !Number.isFinite(
+            product.processing.humidity
+        )
+    ) {
+
+        errors.push(
+            "humidity is invalid"
+        );
+
+    }
+
+
+    if (
+        !Number.isFinite(
+            product.processing.duration
+        )
+    ) {
+
+        errors.push(
+            "duration is invalid"
+        );
+
+    }
+
+
+    return errors;
+
+}
+
+
+// ============================================================
+// HOME
+// ============================================================
 
 app.get(
 
@@ -224,7 +488,8 @@ app.get(
 
         res.json({
 
-            success: true,
+            success:
+                true,
 
             message:
                 "Product Traceability Backend is running",
@@ -233,7 +498,10 @@ app.get(
                 CONTRACT_ADDRESS,
 
             gateway:
-                PINATA_GATEWAY
+                PINATA_GATEWAY,
+
+            frontend:
+                FRONTEND_URL
 
         });
 
@@ -241,9 +509,10 @@ app.get(
 
 );
 
-// ========================================
-// UPLOAD JSON TO IPFS
-// ========================================
+
+// ============================================================
+// UPLOAD JSON TO PINATA PUBLIC IPFS
+// ============================================================
 
 app.post(
 
@@ -256,11 +525,16 @@ app.post(
             const productData =
                 req.body;
 
-            if (!productData) {
+
+            if (
+                !productData ||
+                Object.keys(productData).length === 0
+            ) {
 
                 return res.status(400).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Product data is required"
@@ -269,41 +543,48 @@ app.post(
 
             }
 
-            // ========================================
-            // JSON → BLOB
-            // ========================================
 
-            const jsonBlob = new Blob(
+            const jsonBlob =
+                new Blob(
 
-                [
+                    [
 
-                    JSON.stringify(
+                        JSON.stringify(
 
-                        productData,
+                            productData,
 
-                        null,
+                            null,
 
-                        2
+                            2
 
-                    )
+                        )
 
-                ],
+                    ],
 
-                {
+                    {
 
-                    type:
-                        "application/json"
+                        type:
+                            "application/json"
 
-                }
+                    }
 
-            );
+                );
 
-            // ========================================
-            // FORM DATA
-            // ========================================
 
             const formData =
                 new FormData();
+
+
+            // PUBLIC IPFS
+
+            formData.append(
+
+                "network",
+
+                "public"
+
+            );
+
 
             formData.append(
 
@@ -311,17 +592,21 @@ app.post(
 
                 jsonBlob,
 
-                `${productData.batchId || "product"}.json`
+                `${
+
+                    productData.batchId ||
+
+                    "product"
+
+                }.json`
 
             );
 
-            // ========================================
-            // UPLOAD PINATA
-            // ========================================
 
             console.log(
-                "Uploading JSON to IPFS..."
+                "Uploading JSON to Public IPFS..."
             );
+
 
             const response =
                 await fetchWithTimeout(
@@ -343,11 +628,10 @@ app.post(
                         body:
                             formData
 
-                    },
-
-                    60000
+                    }
 
                 );
+
 
             const result =
                 await response.json() as {
@@ -364,9 +648,6 @@ app.post(
 
                 };
 
-            // ========================================
-            // CHECK PINATA
-            // ========================================
 
             if (!response.ok) {
 
@@ -375,9 +656,11 @@ app.post(
                     result
                 );
 
+
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Upload to IPFS failed",
@@ -389,45 +672,34 @@ app.post(
 
             }
 
-            // ========================================
-            // CID
-            // ========================================
 
             const cid =
                 result.data?.cid;
+
 
             if (!cid) {
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
-                        "CID was not returned by Pinata",
-
-                    data:
-                        result
+                        "CID was not returned by Pinata"
 
                 });
 
             }
 
-            console.log(
-                "IPFS upload successful"
-            );
 
-            console.log(
-                "CID:",
-                cid
-            );
+            const gatewayUrl =
+                `https://${PINATA_GATEWAY}/ipfs/${cid}`;
 
-            // ========================================
-            // RESPONSE
-            // ========================================
 
             return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 batchId:
                     productData.batchId,
@@ -436,22 +708,23 @@ app.post(
                     cid,
 
                 gateway:
-                    `https://${PINATA_GATEWAY}/ipfs/${cid}`
+                    gatewayUrl
 
             });
 
-        }
 
-        catch (error) {
+        } catch (error) {
 
             console.error(
                 "UPLOAD IPFS ERROR:",
                 error
             );
 
+
             return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Server error",
@@ -472,9 +745,11 @@ app.post(
 
 );
 
-// ========================================
+
+// ============================================================
 // CREATE BATCH
-// ========================================
+// JSON → IPFS → BLOCKCHAIN
+// ============================================================
 
 app.post(
 
@@ -487,6 +762,7 @@ app.post(
             const productData =
                 req.body;
 
+
             if (
                 !productData ||
                 !productData.batchId
@@ -494,7 +770,8 @@ app.post(
 
                 return res.status(400).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "batchId is required"
@@ -503,8 +780,14 @@ app.post(
 
             }
 
+
             const batchId =
-                productData.batchId;
+                String(
+
+                    productData.batchId
+
+                ).trim();
+
 
             console.log(
                 "================================"
@@ -523,37 +806,80 @@ app.post(
                 "================================"
             );
 
-            // ========================================
-            // UPLOAD TO IPFS
-            // ========================================
 
-            const jsonBlob = new Blob(
+            // ==================================================
+            // CHECK EXISTING
+            // ==================================================
 
-                [
+            const exists =
+                await contract.batchExists(
 
-                    JSON.stringify(
+                    batchId
 
-                        productData,
+                );
 
-                        null,
 
-                        2
+            if (exists) {
 
-                    )
+                return res.status(400).json({
 
-                ],
+                    success:
+                        false,
 
-                {
+                    message:
+                        "Batch already exists",
 
-                    type:
-                        "application/json"
+                    batchId:
+                        batchId
 
-                }
+                });
 
-            );
+            }
+
+
+            // ==================================================
+            // CREATE JSON
+            // ==================================================
+
+            const jsonBlob =
+                new Blob(
+
+                    [
+
+                        JSON.stringify(
+
+                            productData,
+
+                            null,
+
+                            2
+
+                        )
+
+                    ],
+
+                    {
+
+                        type:
+                            "application/json"
+
+                    }
+
+                );
+
 
             const formData =
                 new FormData();
+
+
+            formData.append(
+
+                "network",
+
+                "public"
+
+            );
+
 
             formData.append(
 
@@ -565,9 +891,15 @@ app.post(
 
             );
 
+
+            // ==================================================
+            // IPFS
+            // ==================================================
+
             console.log(
-                "Uploading to IPFS..."
+                "Uploading to Public IPFS..."
             );
+
 
             const ipfsResponse =
                 await fetchWithTimeout(
@@ -589,11 +921,10 @@ app.post(
                         body:
                             formData
 
-                    },
-
-                    60000
+                    }
 
                 );
+
 
             const ipfsResult =
                 await ipfsResponse.json() as {
@@ -610,16 +941,13 @@ app.post(
 
                 };
 
-            if (!ipfsResponse.ok) {
 
-                console.error(
-                    "Pinata error:",
-                    ipfsResult
-                );
+            if (!ipfsResponse.ok) {
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Upload to IPFS failed",
@@ -631,71 +959,44 @@ app.post(
 
             }
 
+
             const cid =
                 ipfsResult.data?.cid;
+
 
             if (!cid) {
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
-                        "CID was not returned by Pinata",
-
-                    data:
-                        ipfsResult
+                        "CID was not returned"
 
                 });
 
             }
+
+
+            const ipfsUrl =
+                `https://${PINATA_GATEWAY}/ipfs/${cid}`;
+
 
             console.log(
                 "CID:",
                 cid
             );
 
-            // ========================================
-            // CHECK EXISTING BATCH
-            // ========================================
 
-            console.log(
-                "Checking blockchain..."
-            );
-
-            const exists =
-                await contract.batchExists(
-
-                    batchId
-
-                );
-
-            if (exists) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Batch already exists",
-
-                    batchId:
-                        batchId,
-
-                    cid:
-                        cid
-
-                });
-
-            }
-
-            // ========================================
-            // CREATE BLOCKCHAIN RECORD
-            // ========================================
+            // ==================================================
+            // BLOCKCHAIN
+            // ==================================================
 
             console.log(
                 "Writing batch to blockchain..."
             );
+
 
             const tx =
                 await contract.createBatch(
@@ -706,29 +1007,42 @@ app.post(
 
                 );
 
+
             console.log(
                 "Transaction:",
                 tx.hash
             );
 
-            console.log(
-                "Waiting for confirmation..."
-            );
 
             const receipt =
                 await tx.wait();
+
 
             console.log(
                 "Blockchain confirmed!"
             );
 
-            // ========================================
-            // RESPONSE
-            // ========================================
+
+            const qrUrl =
+                `${
+
+                    FRONTEND_URL
+
+                }/product/${
+
+                    encodeURIComponent(
+
+                        batchId
+
+                    )
+
+                }`;
+
 
             return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 batchId:
                     batchId,
@@ -743,22 +1057,26 @@ app.post(
                     CONTRACT_ADDRESS,
 
                 gateway:
-                    `https://${PINATA_GATEWAY}/ipfs/${cid}`
+                    ipfsUrl,
+
+                qrUrl:
+                    qrUrl
 
             });
 
-        }
 
-        catch (error) {
+        } catch (error) {
 
             console.error(
                 "CREATE BATCH ERROR:",
                 error
             );
 
+
             return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to create batch",
@@ -779,9 +1097,10 @@ app.post(
 
 );
 
-// ========================================
-// GET BATCH FROM BLOCKCHAIN
-// ========================================
+
+// ============================================================
+// GET BATCH
+// ============================================================
 
 app.get(
 
@@ -794,23 +1113,6 @@ app.get(
             const batchId =
                 req.params.batchId;
 
-            if (!batchId) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Batch ID is required"
-
-                });
-
-            }
-
-            console.log(
-                "Reading batch:",
-                batchId
-            );
 
             const result =
                 await contract.getBatch(
@@ -829,9 +1131,11 @@ app.get(
 
                 ];
 
+
             return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 batchId:
                     result[0],
@@ -850,18 +1154,19 @@ app.get(
 
             });
 
-        }
 
-        catch (error) {
+        } catch (error) {
 
             console.error(
                 "GET BATCH ERROR:",
                 error
             );
 
+
             return res.status(404).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
 
@@ -879,10 +1184,11 @@ app.get(
 
 );
 
-// ========================================
+
+// ============================================================
 // GET COMPLETE PRODUCT
 // BLOCKCHAIN + IPFS
-// ========================================
+// ============================================================
 
 app.get(
 
@@ -895,18 +1201,6 @@ app.get(
             const batchId =
                 req.params.batchId;
 
-            if (!batchId) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Batch ID is required"
-
-                });
-
-            }
 
             console.log(
                 "================================"
@@ -925,13 +1219,15 @@ app.get(
                 "================================"
             );
 
-            // ========================================
-            // READ BLOCKCHAIN
-            // ========================================
+
+            // ==================================================
+            // BLOCKCHAIN
+            // ==================================================
 
             console.log(
                 "Reading blockchain..."
             );
+
 
             const result =
                 await contract.getBatch(
@@ -950,46 +1246,43 @@ app.get(
 
                 ];
 
-            const blockchainData = {
 
-                batchId:
-                    result[0],
+            const returnedBatchId =
+                result[0];
 
-                cid:
-                    result[1],
 
-                timestamp:
-                    result[2].toString(),
+            const cid =
+                result[1];
 
-                creator:
-                    result[3]
 
-            };
+            const timestamp =
+                result[2].toString();
+
+
+            const creator =
+                result[3];
+
 
             console.log(
                 "Blockchain OK"
             );
 
+
             console.log(
                 "CID:",
-                blockchainData.cid
+                cid
             );
 
-            // ========================================
-            // CHECK CID
-            // ========================================
-
-            const cid =
-                blockchainData.cid;
 
             if (!cid) {
 
                 return res.status(404).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
-                        "CID not found for this batch",
+                        "CID not found",
 
                     batchId:
                         batchId
@@ -998,145 +1291,62 @@ app.get(
 
             }
 
-            // ========================================
-            // PINATA GATEWAY
-            // ========================================
+
+            // ==================================================
+            // IPFS
+            // ==================================================
 
             const ipfsUrl =
-
                 `https://${PINATA_GATEWAY}/ipfs/${cid}`;
+
 
             console.log(
                 "Reading IPFS..."
             );
+
 
             console.log(
                 "IPFS URL:",
                 ipfsUrl
             );
 
-            // ========================================
-            // READ IPFS
-            // ========================================
 
-            try {
+            const ipfsResponse =
+                await fetchWithTimeout(
 
-                const ipfsResponse =
+                    ipfsUrl,
 
-                    await fetchWithTimeout(
+                    {
 
-                        ipfsUrl,
+                        method:
+                            "GET",
 
-                        {
+                        headers: {
 
-                            method:
-                                "GET",
+                            Accept:
+                                "application/json"
 
-                            headers: {
-
-                                Accept:
-                                    "application/json"
-
-                            }
-
-                        },
-
-                        60000
-
-                    );
-
-                console.log(
-                    "IPFS HTTP status:",
-                    ipfsResponse.status
-                );
-
-                if (!ipfsResponse.ok) {
-
-                    return res.status(500).json({
-
-                        success: false,
-
-                        message:
-                            "Cannot read product data from IPFS",
-
-                        batchId:
-                            batchId,
-
-                        cid:
-                            cid,
-
-                        status:
-                            ipfsResponse.status
-
-                    });
-
-                }
-
-                // ========================================
-                // READ JSON
-                // ========================================
-
-                const productData =
-                    await ipfsResponse.json();
-
-                console.log(
-                    "IPFS read successful"
-                );
-
-                // ========================================
-                // RESPONSE
-                // ========================================
-
-                return res.json({
-
-                    success: true,
-
-                    blockchain: {
-
-                        batchId:
-                            blockchainData.batchId,
-
-                        cid:
-                            blockchainData.cid,
-
-                        timestamp:
-                            blockchainData.timestamp,
-
-                        creator:
-                            blockchainData.creator,
-
-                        contract:
-                            CONTRACT_ADDRESS
+                        }
 
                     },
 
-                    product:
-                        productData,
+                    60000
 
-                    ipfs: {
-
-                        cid:
-                            cid,
-
-                        gateway:
-                            ipfsUrl
-
-                    }
-
-                });
-
-            }
-
-            catch (ipfsError) {
-
-                console.error(
-                    "IPFS ERROR:",
-                    ipfsError
                 );
+
+
+            console.log(
+                "IPFS HTTP status:",
+                ipfsResponse.status
+            );
+
+
+            if (!ipfsResponse.ok) {
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Cannot read product data from IPFS",
@@ -1147,33 +1357,78 @@ app.get(
                     cid:
                         cid,
 
+                    status:
+                        ipfsResponse.status,
+
                     gateway:
-                        ipfsUrl,
-
-                    error:
-
-                        ipfsError instanceof Error
-
-                            ? ipfsError.message
-
-                            : "Unknown IPFS error"
+                        ipfsUrl
 
                 });
 
             }
 
-        }
 
-        catch (error) {
+            const productData =
+                await ipfsResponse.json();
+
+
+            console.log(
+                "IPFS OK"
+            );
+
+
+            return res.json({
+
+                success:
+                    true,
+
+                blockchain: {
+
+                    batchId:
+                        returnedBatchId,
+
+                    cid:
+                        cid,
+
+                    timestamp:
+                        timestamp,
+
+                    creator:
+                        creator,
+
+                    contract:
+                        CONTRACT_ADDRESS
+
+                },
+
+                product:
+                    productData,
+
+                ipfs: {
+
+                    cid:
+                        cid,
+
+                    gateway:
+                        ipfsUrl
+
+                }
+
+            });
+
+
+        } catch (error) {
 
             console.error(
                 "GET PRODUCT ERROR:",
                 error
             );
 
+
             return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to get product",
@@ -1194,13 +1449,921 @@ app.get(
 
 );
 
-// ========================================
+
+// ============================================================
+// EXCEL IMPORT
+//
+// Excel
+//   ↓
+// Read rows
+//   ↓
+// Product JSON
+//   ↓
+// Pinata Public IPFS
+//   ↓
+// CID
+//   ↓
+// Blockchain
+//   ↓
+// TX Hash
+//   ↓
+// QR URL
+//   ↓
+// Updated Excel
+// ============================================================
+
+app.post(
+
+    "/api/upload-excel",
+
+    upload.single("file"),
+
+    async (req, res) => {
+
+        try {
+
+            // ==================================================
+            // CHECK FILE
+            // ==================================================
+
+            if (!req.file) {
+
+                return res.status(400).json({
+
+                    success:
+                        false,
+
+                    message:
+                        "Excel file is required"
+
+                });
+
+            }
+
+
+            console.log(
+                "================================"
+            );
+
+            console.log(
+                "EXCEL IMPORT"
+            );
+
+            console.log(
+                "File:",
+                req.file.originalname
+            );
+
+            console.log(
+                "================================"
+            );
+
+
+            // ==================================================
+            // READ WORKBOOK
+            // ==================================================
+
+            const workbook =
+                XLSX.read(
+
+                    req.file.buffer,
+
+                    {
+
+                        type:
+                            "buffer",
+
+                        cellDates:
+                            false
+
+                    }
+
+                );
+
+
+            if (
+                workbook.SheetNames.length === 0
+            ) {
+
+                return res.status(400).json({
+
+                    success:
+                        false,
+
+                    message:
+                        "Excel file has no worksheet"
+
+                });
+
+            }
+
+
+            const sheetName =
+                workbook.SheetNames[0];
+
+
+            const worksheet =
+                workbook.Sheets[sheetName];
+
+
+            const rows =
+                XLSX.utils.sheet_to_json<
+                    Record<string, unknown>
+                >(
+
+                    worksheet,
+
+                    {
+
+                        defval:
+                            ""
+
+                    }
+
+                );
+
+
+            if (rows.length === 0) {
+
+                return res.status(400).json({
+
+                    success:
+                        false,
+
+                    message:
+                        "Excel file has no data"
+
+                });
+
+            }
+
+
+            console.log(
+                "Rows:",
+                rows.length
+            );
+
+
+            // ==================================================
+            // PROCESS RESULTS
+            // ==================================================
+
+            const processedRows:
+                Record<string, unknown>[] = [];
+
+
+            let successCount =
+                0;
+
+
+            let errorCount =
+                0;
+
+
+            // ==================================================
+            // PROCESS EACH ROW
+            // ==================================================
+
+            for (
+
+                let i = 0;
+
+                i < rows.length;
+
+                i++
+
+            ) {
+
+                const rawRow =
+                    rows[i];
+
+
+                const excelRow =
+                    i + 2;
+
+
+                const product =
+                    rowToProduct(
+                        rawRow
+                    );
+
+
+                console.log(
+                    "--------------------------------"
+                );
+
+
+                console.log(
+                    "Processing Excel row:",
+                    excelRow
+                );
+
+
+                console.log(
+                    "Batch ID:",
+                    product.batchId
+                );
+
+
+                // ==================================================
+                // VALIDATE
+                // ==================================================
+
+                const validationErrors =
+                    validateProduct(
+                        product
+                    );
+
+
+                if (
+                    validationErrors.length > 0
+                ) {
+
+                    errorCount++;
+
+
+                    processedRows.push({
+
+                        ...rawRow,
+
+                        CID:
+                            "",
+
+                        "IPFS URL":
+                            "",
+
+                        "Transaction Hash":
+                            "",
+
+                        Status:
+                            "ERROR",
+
+                        "Error Message":
+                            validationErrors.join(
+                                "; "
+                            ),
+
+                        "QR URL":
+                            ""
+
+                    });
+
+
+                    continue;
+
+                }
+
+
+                try {
+
+                    // ==================================================
+                    // CHECK EXISTING
+                    // ==================================================
+
+                    const exists =
+                        await contract.batchExists(
+
+                            product.batchId
+
+                        );
+
+
+                    if (exists) {
+
+                        errorCount++;
+
+
+                        processedRows.push({
+
+                            ...rawRow,
+
+                            CID:
+                                "",
+
+                            "IPFS URL":
+                                "",
+
+                            "Transaction Hash":
+                                "",
+
+                            Status:
+                                "ALREADY_EXISTS",
+
+                            "Error Message":
+                                "Batch already exists on blockchain",
+
+                            "QR URL":
+                                `${FRONTEND_URL}/product/${encodeURIComponent(
+                                    product.batchId
+                                )}`
+
+                        });
+
+
+                        continue;
+
+                    }
+
+
+                    // ==================================================
+                    // CREATE PRODUCT JSON
+                    // ==================================================
+
+                    const jsonBlob =
+                        new Blob(
+
+                            [
+
+                                JSON.stringify(
+
+                                    product,
+
+                                    null,
+
+                                    2
+
+                                )
+
+                            ],
+
+                            {
+
+                                type:
+                                    "application/json"
+
+                            }
+
+                        );
+
+
+                    // ==================================================
+                    // FORM DATA
+                    // ==================================================
+
+                    const formData =
+                        new FormData();
+
+
+                    // PUBLIC IPFS
+
+                    formData.append(
+
+                        "network",
+
+                        "public"
+
+                    );
+
+
+                    formData.append(
+
+                        "file",
+
+                        jsonBlob,
+
+                        `${product.batchId}.json`
+
+                    );
+
+
+                    // ==================================================
+                    // UPLOAD PINATA
+                    // ==================================================
+
+                    console.log(
+                        "Uploading to Public IPFS..."
+                    );
+
+
+                    const ipfsResponse =
+                        await fetchWithTimeout(
+
+                            "https://uploads.pinata.cloud/v3/files",
+
+                            {
+
+                                method:
+                                    "POST",
+
+                                headers: {
+
+                                    Authorization:
+                                        `Bearer ${PINATA_JWT}`
+
+                                },
+
+                                body:
+                                    formData
+
+                            },
+
+                            60000
+
+                        );
+
+
+                    const ipfsResult =
+                        await ipfsResponse.json() as {
+
+                            data?: {
+
+                                cid?: string;
+
+                            };
+
+                            error?: unknown;
+
+                            message?: string;
+
+                        };
+
+
+                    if (
+                        !ipfsResponse.ok
+                    ) {
+
+                        throw new Error(
+
+                            ipfsResult.message ||
+
+                            "Pinata upload failed"
+
+                        );
+
+                    }
+
+
+                    const cid =
+                        ipfsResult.data?.cid;
+
+
+                    if (!cid) {
+
+                        throw new Error(
+                            "CID was not returned by Pinata"
+                        );
+
+                    }
+
+
+                    console.log(
+                        "CID:",
+                        cid
+                    );
+
+
+                    // ==================================================
+                    // VERIFY IPFS PUBLIC ACCESS
+                    // ==================================================
+
+                    const ipfsUrl =
+                        `https://${PINATA_GATEWAY}/ipfs/${cid}`;
+
+
+                    console.log(
+                        "Verifying IPFS:",
+                        ipfsUrl
+                    );
+
+
+                    const verifyResponse =
+                        await fetchWithTimeout(
+
+                            ipfsUrl,
+
+                            {
+
+                                method:
+                                    "GET",
+
+                                headers: {
+
+                                    Accept:
+                                        "application/json"
+
+                                }
+
+                            },
+
+                            60000
+
+                        );
+
+
+                    if (
+                        !verifyResponse.ok
+                    ) {
+
+                        throw new Error(
+
+                            `IPFS verification failed: HTTP ${verifyResponse.status}`
+
+                        );
+
+                    }
+
+
+                    console.log(
+                        "IPFS verification OK"
+                    );
+
+
+                    // ==================================================
+                    // BLOCKCHAIN
+                    // ==================================================
+
+                    console.log(
+                        "Writing blockchain..."
+                    );
+
+
+                    const tx =
+                        await contract.createBatch(
+
+                            product.batchId,
+
+                            cid
+
+                        );
+
+
+                    console.log(
+                        "Transaction:",
+                        tx.hash
+                    );
+
+
+                    const receipt =
+                        await tx.wait();
+
+
+                    console.log(
+                        "Blockchain confirmed"
+                    );
+
+
+                    // ==================================================
+                    // QR URL
+                    // ==================================================
+
+                    const qrUrl =
+                        `${FRONTEND_URL}/product/${encodeURIComponent(
+                            product.batchId
+                        )}`;
+
+
+                    // ==================================================
+                    // SUCCESS
+                    // ==================================================
+
+                    successCount++;
+
+
+                    processedRows.push({
+
+                        ...rawRow,
+
+                        CID:
+                            cid,
+
+                        "IPFS URL":
+                            ipfsUrl,
+
+                        "Transaction Hash":
+                            receipt.hash,
+
+                        Status:
+                            "SUCCESS",
+
+                        "Error Message":
+                            "",
+
+                        "QR URL":
+                            qrUrl
+
+                    });
+
+
+                } catch (rowError) {
+
+                    errorCount++;
+
+
+                    console.error(
+                        "ROW ERROR:",
+                        rowError
+                    );
+
+
+                    processedRows.push({
+
+                        ...rawRow,
+
+                        CID:
+                            "",
+
+                        "IPFS URL":
+                            "",
+
+                        "Transaction Hash":
+                            "",
+
+                        Status:
+                            "ERROR",
+
+                        "Error Message":
+
+                            rowError instanceof Error
+
+                                ? rowError.message
+
+                                : "Unknown error",
+
+                        "QR URL":
+                            ""
+
+                    });
+
+                }
+
+            }
+
+
+            // ==================================================
+            // CREATE UPDATED SHEET
+            // ==================================================
+
+            const resultWorksheet =
+                XLSX.utils.json_to_sheet(
+
+                    processedRows
+
+                );
+
+
+            // ==================================================
+            // AUTO COLUMN WIDTH
+            // ==================================================
+
+            const allRows =
+                processedRows;
+
+
+            const headers =
+                allRows.length > 0
+
+                    ? Object.keys(
+                        allRows[0]
+                    )
+
+                    : [];
+
+
+            resultWorksheet["!cols"] =
+                headers.map(
+
+                    (header) => {
+
+                        let maxLength =
+                            header.length;
+
+
+                        for (
+                            const row
+                            of allRows
+                        ) {
+
+                            const value =
+                                row[header];
+
+
+                            const text =
+                                value === undefined ||
+                                value === null
+
+                                    ? ""
+
+                                    : String(
+                                        value
+                                    );
+
+
+                            maxLength =
+                                Math.max(
+
+                                    maxLength,
+
+                                    text.length
+
+                                );
+
+                        }
+
+
+                        return {
+
+                            wch:
+                                Math.min(
+                                    Math.max(
+                                        maxLength + 2,
+                                        10
+                                    ),
+                                    80
+                                )
+
+                        };
+
+                    }
+
+                );
+
+
+            // ==================================================
+            // REPLACE ORIGINAL SHEET
+            // ==================================================
+
+            workbook.Sheets[sheetName] =
+                resultWorksheet;
+
+
+            // ==================================================
+            // WRITE EXCEL
+            // ==================================================
+
+            const outputBuffer =
+                XLSX.write(
+
+                    workbook,
+
+                    {
+
+                        type:
+                            "buffer",
+
+                        bookType:
+                            "xlsx"
+
+                    }
+
+                );
+
+
+            // ==================================================
+            // SAFE ORIGINAL FILE NAME
+            // ==================================================
+
+            const originalName =
+                req.file.originalname
+                    .replace(
+                        /["\r\n]/g,
+                        "_"
+                    );
+
+
+            // ==================================================
+            // RESPONSE HEADERS
+            // ==================================================
+
+            res.setHeader(
+
+                "Content-Type",
+
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+            );
+
+
+            res.setHeader(
+
+                "Content-Disposition",
+
+                `attachment; filename="${originalName}"`
+
+            );
+
+
+            res.setHeader(
+
+                "X-Excel-Total-Rows",
+
+                String(
+                    rows.length
+                )
+
+            );
+
+
+            res.setHeader(
+
+                "X-Excel-Success",
+
+                String(
+                    successCount
+                )
+
+            );
+
+
+            res.setHeader(
+
+                "X-Excel-Errors",
+
+                String(
+                    errorCount
+                )
+
+            );
+
+
+            // ==================================================
+            // LOG
+            // ==================================================
+
+            console.log(
+                "================================"
+            );
+
+            console.log(
+                "EXCEL IMPORT COMPLETE"
+            );
+
+            console.log(
+                "Total:",
+                rows.length
+            );
+
+            console.log(
+                "Success:",
+                successCount
+            );
+
+            console.log(
+                "Errors:",
+                errorCount
+            );
+
+            console.log(
+                "Returning updated Excel:",
+                originalName
+            );
+
+            console.log(
+                "================================"
+            );
+
+
+            // ==================================================
+            // RETURN FILE
+            // ==================================================
+
+            return res.send(
+                outputBuffer
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "EXCEL IMPORT ERROR:",
+                error
+            );
+
+
+            return res.status(500).json({
+
+                success:
+                    false,
+
+                message:
+                    "Failed to process Excel",
+
+                error:
+
+                    error instanceof Error
+
+                        ? error.message
+
+                        : "Unknown error"
+
+            });
+
+        }
+
+    }
+
+);
+
+
+// ============================================================
 // START SERVER
-// ========================================
+// ============================================================
 
 app.listen(
+
     PORT,
+
     "0.0.0.0",
+
     () => {
 
         console.log(
@@ -1226,8 +2389,14 @@ app.listen(
         );
 
         console.log(
+            "Frontend URL:",
+            FRONTEND_URL
+        );
+
+        console.log(
             "================================"
         );
 
     }
+
 );
